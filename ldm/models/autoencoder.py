@@ -1,4 +1,5 @@
 import torch
+from torchvision import transforms
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from contextlib import contextmanager
@@ -341,20 +342,36 @@ class AutoencoderKL(pl.LightningModule):
         dec = self.decode(z)
         return dec, posterior
 
-    def get_input(self, batch, k):
-        x = batch[k]
-        if len(x.shape) == 3:
-            x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
-        return x
+    def get_input(self, batch, split="train"):
+        seviri, era5, dardar, overpass_mask, patch_idx = batch
+        
+        # double check when which dtype occurs
+        seviri = seviri.float() # this means float32, double() is float64,
+        
+        overpass_mask = overpass_mask.long()
+        dardar = dardar.permute(0,3,1,2) # permute to batch, channels, H, W
+        dardar = dardar * overpass_mask.unsqueeze(1) # dardar is already masked but in case target is in log space, set all non overpass indices to 0
+        
+        # add "channel" dimension to era5, double check era5 normalization
+        if len(era5.shape)==2:
+            era5 = era5.unsqueeze(1)
+        
+        # randomly rotate image
+        if split=="train":
+            rotation_angle = int(np.random.choice([0,90,180,270,-90,-180,-270]))
+            seviri = transforms.functional.rotate(seviri, rotation_angle)
+            overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
+            dardar = transforms.functional.rotate(dardar, rotation_angle) 
+
+        return seviri, era5, dardar, overpass_mask, patch_idx
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        inputs = self.get_input(batch, self.image_key)
-        reconstructions, posterior = self(inputs)
+        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, self.image_key)
+        reconstructions, posterior = self(seviri)
 
         if optimizer_idx == 0:
             # train encoder+decoder+logvar
-            aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, optimizer_idx, self.global_step,
+            aeloss, log_dict_ae = self.loss(dardar, reconstructions, posterior, optimizer_idx, self.global_step,
                                             last_layer=self.get_last_layer(), split="train")
             self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
@@ -362,7 +379,7 @@ class AutoencoderKL(pl.LightningModule):
 
         if optimizer_idx == 1:
             # train the discriminator
-            discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, optimizer_idx, self.global_step,
+            discloss, log_dict_disc = self.loss(dardar, reconstructions, posterior, optimizer_idx, self.global_step,
                                                 last_layer=self.get_last_layer(), split="train")
 
             self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
@@ -370,12 +387,12 @@ class AutoencoderKL(pl.LightningModule):
             return discloss
 
     def validation_step(self, batch, batch_idx):
-        inputs = self.get_input(batch, self.image_key)
-        reconstructions, posterior = self(inputs)
-        aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, 0, self.global_step,
+        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, self.image_key)
+        reconstructions, posterior = self(seviri)
+        aeloss, log_dict_ae = self.loss(dardar, reconstructions, posterior, 0, self.global_step,
                                         last_layer=self.get_last_layer(), split="val")
 
-        discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, 1, self.global_step,
+        discloss, log_dict_disc = self.loss(dardar, reconstructions, posterior, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
