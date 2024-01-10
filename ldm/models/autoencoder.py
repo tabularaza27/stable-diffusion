@@ -347,6 +347,7 @@ class AutoencoderKL(pl.LightningModule):
         
         # double check when which dtype occurs
         seviri = seviri.float() # this means float32, double() is float64,
+        dardar = dardar.float()
         
         overpass_mask = overpass_mask.long()
         dardar = dardar.permute(0,3,1,2) # permute to batch, channels, H, W
@@ -401,7 +402,7 @@ class AutoencoderKL(pl.LightningModule):
         return self.log_dict
 
     def configure_optimizers(self):
-        lr = self.learning_rate
+        lr = 4.5e-06 # TODO: for now manually set by me self.learning_rate
         opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
                                   list(self.decoder.parameters())+
                                   list(self.quant_conv.parameters())+
