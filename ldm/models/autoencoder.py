@@ -384,10 +384,10 @@ class AutoencoderKL(pl.LightningModule):
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
-        aeloss, log_dict_ae = self.loss(dardar, reconstructions, posterior, 0, self.global_step,
+        aeloss, log_dict_ae = self.loss(dardar, reconstructions, 0, self.global_step,
                                         last_layer=self.get_last_layer(), split="val")
 
-        discloss, log_dict_disc = self.loss(dardar, reconstructions, posterior, 1, self.global_step,
+        discloss, log_dict_disc = self.loss(dardar, reconstructions, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
