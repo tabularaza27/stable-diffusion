@@ -367,9 +367,9 @@ class AutoencoderKL(pl.LightningModule):
         return seviri, era5, dardar, overpass_mask, patch_idx
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, self.image_key)
+        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="train")
         reconstructions, posterior = self(seviri)
-
+        reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
         if optimizer_idx == 0:
             # train encoder+decoder+logvar
             aeloss, log_dict_ae = self.loss(dardar, reconstructions, posterior, optimizer_idx, self.global_step,
@@ -388,8 +388,10 @@ class AutoencoderKL(pl.LightningModule):
             return discloss
 
     def validation_step(self, batch, batch_idx):
-        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, self.image_key)
+        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="val")
         reconstructions, posterior = self(seviri)
+        reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
+
         aeloss, log_dict_ae = self.loss(dardar, reconstructions, posterior, 0, self.global_step,
                                         last_layer=self.get_last_layer(), split="val")
 
