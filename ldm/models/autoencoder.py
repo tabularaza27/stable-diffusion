@@ -295,7 +295,6 @@ class AutoencoderKL(pl.LightningModule):
                  monitor=None,
                  ):
         super().__init__()
-        self.image_key = image_key
         self.unet = IWPNetV1(in_channels=8,out_channels=256,dim_mults = (1,2,4),extended_final_conv=False,residual = True,final_relu = True, final_rff=False)
         self.loss = instantiate_from_config(lossconfig)
         assert ddconfig["double_z"]
