@@ -5,14 +5,13 @@ from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/
 
 
 class LPIPSWithDiscriminator(nn.Module):
-    def __init__(self, disc_start, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
+    def __init__(self, disc_start, logvar_init=0.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
                  perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
                  disc_loss="hinge"):
 
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
-        self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
         # self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
@@ -42,7 +41,7 @@ class LPIPSWithDiscriminator(nn.Module):
         d_weight = d_weight * self.discriminator_weight
         return d_weight
 
-    def forward(self, inputs, reconstructions, posteriors, optimizer_idx,
+    def forward(self, inputs, reconstructions, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
@@ -56,8 +55,6 @@ class LPIPSWithDiscriminator(nn.Module):
             weighted_nll_loss = weights*nll_loss
         weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
-        kl_loss = posteriors.kl()
-        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
         # now the GAN part
         if optimizer_idx == 0:
@@ -80,10 +77,9 @@ class LPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss
+            loss = weighted_nll_loss + d_weight * disc_factor * g_loss
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(), "{}/logvar".format(split): self.logvar.detach(),
-                   "{}/kl_loss".format(split): kl_loss.detach().mean(), "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
