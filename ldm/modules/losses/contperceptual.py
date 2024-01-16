@@ -19,17 +19,20 @@ class LPIPSWithDiscriminator(nn.Module):
         # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
         if discriminator_3D == True:
-            self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
-                                                    n_layers=disc_num_layers,
-                                                    use_actnorm=use_actnorm,
-                                                    ndf=ndf
-                                                    ).apply(weights_init)
-        else:
+            # use 3D discriminator
             self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
                                                     n_layers=disc_num_layers,
                                                     ndf=ndf
                                                     ).apply(weights_init)
 
+        else:
+            # use 2D discriminator
+            self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
+                                                    n_layers=disc_num_layers,
+                                                    use_actnorm=use_actnorm,
+                                                    ndf=ndf
+                                                    ).apply(weights_init)
+            
         self.discriminator_iter_start = disc_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
         self.disc_factor = disc_factor
