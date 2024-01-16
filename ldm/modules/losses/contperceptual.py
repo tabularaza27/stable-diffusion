@@ -1,4 +1,5 @@
 import torch
+import functools
 import torch.nn as nn
 
 from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
@@ -8,7 +9,7 @@ class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
                  perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
-                 disc_loss="hinge", ndf=64):
+                 disc_loss="hinge", ndf=64, discriminator_3D=False):
 
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
@@ -17,12 +18,18 @@ class LPIPSWithDiscriminator(nn.Module):
         self.perceptual_weight = perceptual_weight
         # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
+        if discriminator_3D == True:
+            self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
+                                                    n_layers=disc_num_layers,
+                                                    use_actnorm=use_actnorm,
+                                                    ndf=ndf
+                                                    ).apply(weights_init)
+        else:
+            self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
+                                                    n_layers=disc_num_layers,
+                                                    ndf=ndf
+                                                    ).apply(weights_init)
 
-        self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
-                                                 n_layers=disc_num_layers,
-                                                 use_actnorm=use_actnorm,
-                                                 ndf=ndf
-                                                 ).apply(weights_init)
         self.discriminator_iter_start = disc_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
         self.disc_factor = disc_factor
@@ -106,3 +113,54 @@ class LPIPSWithDiscriminator(nn.Module):
                    }
             return d_loss, log
 
+
+
+# Defines the PatchGAN discriminator with the specified arguments.
+# As seen here https://github.com/davidiommi/3D-CycleGan-Pytorch-MedImaging/blob/main/models/networks3D.py#L369
+# only modified forward to add channel dimension
+class NLayerDiscriminator3D(nn.Module):
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm3d, use_sigmoid=False):
+        super(NLayerDiscriminator3D, self).__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm3d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm3d
+
+        kw = 4
+        padw = 1
+        sequence = [
+            nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [
+                nn.Conv3d(ndf * nf_mult_prev, ndf * nf_mult,
+                          kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            ]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2**n_layers, 8)
+        sequence += [
+            nn.Conv3d(ndf * nf_mult_prev, ndf * nf_mult,
+                      kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            norm_layer(ndf * nf_mult),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        sequence += [nn.Conv3d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
+
+        if use_sigmoid:
+            sequence += [nn.Sigmoid()]
+
+        self.model = nn.Sequential(*sequence)
+
+    def forward(self, input):
+        # modifiy input to add channel dimension
+        return self.model(input.unsqueeze(1))
