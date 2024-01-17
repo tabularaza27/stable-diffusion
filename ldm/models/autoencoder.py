@@ -290,35 +290,20 @@ class AutoencoderKL(pl.LightningModule):
                  lossconfig,
                  embed_dim,
                  ckpt_path=None,
-                 ignore_keys=[],
-                 colorize_nlabels=None,
                  monitor=None,
                  ):
         super().__init__()
         self.unet = IWPNetV1(in_channels=8,out_channels=256,dim_mults = (1,2,4),extended_final_conv=False,residual = True,final_relu = True, final_rff=False)
+        if ckpt_path:
+            self.load_pretrained_unet(ckpt_path)
+        
         self.loss = instantiate_from_config(lossconfig)
-        assert ddconfig["double_z"]
-        #self.quant_conv = torch.nn.Conv2d(2*ddconfig["z_channels"], 2*embed_dim, 1)
-        #self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
-        #self.embed_dim = embed_dim
-        #if colorize_nlabels is not None:
-        #    assert type(colorize_nlabels)==int
-        #    self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
-        #if monitor is not None:
-        #    self.monitor = monitor
-        #if ckpt_path is not None:
-        #    self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
-
-    def init_from_ckpt(self, path, ignore_keys=list()):
-        sd = torch.load(path, map_location="cpu")["state_dict"]
-        keys = list(sd.keys())
-        for k in keys:
-            for ik in ignore_keys:
-                if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
-                    del sd[k]
-        self.load_state_dict(sd, strict=False)
-        print(f"Restored from {path}")
+        
+    def load_pretrained_unet(self, ckpt_path):
+        print(f"load pretrained unet from path {ckpt_path}")
+        pretrained_state_dict = torch.load(ckpt_path)["state_dict"]
+        pretrained_state_dict={k.split("ice_net.")[-1]: v for k, v in pretrained_state_dict.items()}
+        self.unet.load_state_dict(pretrained_state_dict)
 
     def encode(self, x):
         h = self.encoder(x)
