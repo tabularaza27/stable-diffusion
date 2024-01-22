@@ -9,7 +9,7 @@ class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
                  perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
-                 disc_loss="hinge", ndf=64, discriminator_3D=False, crop_to_profiles_2d=False, crop_mode="sum_dimensions"):
+                 disc_loss="hinge", ndf=64, discriminator_3D=False, crop_to_profiles_2d=False, crop_mode="avg_dimensions"):
 
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
@@ -124,10 +124,10 @@ class LPIPSWithDiscriminator(nn.Module):
 
     @staticmethod
     def get_2d_profiles(cubes:torch.tensor, mode):
-        assert mode in ["sum_dimensions","padding"]
+        assert mode in ["avg_dimensions","padding"]
         
-        if mode == "sum_dimensions":
-            profiles_2d = torch.stack((cubes.sum(dim=-1), cubes.sum(dim=-2)),dim=1)
+        if mode == "avg_dimensions":
+            profiles_2d = torch.stack((cubes.mean(dim=-1), cubes.mean(dim=-2)),dim=1)
 
         return profiles_2d
 
