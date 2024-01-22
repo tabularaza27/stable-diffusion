@@ -1,6 +1,7 @@
 import torch
 import functools
 import torch.nn as nn
+import torch.nn.functional as F
 
 from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
 
@@ -56,7 +57,7 @@ class LPIPSWithDiscriminator(nn.Module):
 
     def forward(self, inputs, reconstructions, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train",
-                weights=None):
+                weights=None, overpass_mask=None):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
         #if self.perceptual_weight > 0:
         #    p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
@@ -70,8 +71,8 @@ class LPIPSWithDiscriminator(nn.Module):
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
         if self.crop_to_profiles_2d:
-            reconstructions = LPIPSWithDiscriminator.get_2d_profiles(reconstructions,mode=self.crop_mode)
-            inputs = LPIPSWithDiscriminator.get_2d_profiles(inputs,mode=self.crop_mode)
+            reconstructions = LPIPSWithDiscriminator.get_2d_profiles(reconstructions,mode=self.crop_mode, overpass_mask=overpass_mask)
+            inputs = LPIPSWithDiscriminator.get_2d_profiles(inputs,mode=self.crop_mode, overpass_mask=overpass_mask)
 
         # now the GAN part
         if optimizer_idx == 0:
@@ -123,13 +124,46 @@ class LPIPSWithDiscriminator(nn.Module):
             return d_loss, log
 
     @staticmethod
-    def get_2d_profiles(cubes:torch.tensor, mode):
+    def get_2d_profiles(cubes:torch.tensor, mode="avg_dimensions", overpass_mask=None):
         assert mode in ["avg_dimensions","padding"]
         
         if mode == "avg_dimensions":
-            profiles_2d = torch.stack((cubes.mean(dim=-1), cubes.mean(dim=-2)),dim=1)
+            profiles_2d = torch.stack((cubes.mean(dim=-1), cubes.mean(dim=-2)),dim=1) # N x 2 x 256 x 64
+
+        if mode == "padding":
+            assert overpass_mask is not None
+            profiles_2d = LPIPSWithDiscriminator._get_padded_profiles(cubes, overpass_mask) # N x 1 x 256 x 96
 
         return profiles_2d
+    
+    @staticmethod
+    def _get_padded_profiles(cubes, overpass_mask, max_profile_length=96, pad_value=-1):
+        """create profiles with equal length -> pad with pad_value to length 96
+
+        Args:
+            y_hat (_type_): N x Z x H x W 
+            dardar (_type_): N x Z x H x W 
+            overpass_mask (_type_): _description_
+
+        Returns:
+            torch.tensor, torch.tensor: 2d profiles of y_hat and dardar along over pass with dimensions N x 1 x Z x max_profile_length
+        """
+        batch_size = cubes.shape[0]
+        profile_height = cubes.shape[1]
+
+        profile_padded_list  = []
+
+        for idx in range(batch_size):
+            profile = torch.masked_select(cubes[idx], overpass_mask[idx].bool())
+            profile = profile.reshape(profile_height, int(profile.shape[0]/profile_height))
+            profile_padded = F.pad(profile, (0, max_profile_length-profile.shape[1]),value=pad_value)
+            profile_padded = profile_padded.unsqueeze(0).unsqueeze(0)
+            profile_padded_list.append(profile_padded)
+
+        profile_padded = torch.concat(profile_padded_list,0)
+        
+
+        return profile_padded
 
 
 # Defines the PatchGAN discriminator with the specified arguments.
