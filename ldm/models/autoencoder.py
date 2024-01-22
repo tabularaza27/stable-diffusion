@@ -293,6 +293,7 @@ class AutoencoderKL(pl.LightningModule):
                  monitor=None,
                  ):
         super().__init__()
+        self.lossconfig=lossconfig
         self.unet = IWPNetV1(in_channels=8,out_channels=256,dim_mults = (1,2,4),extended_final_conv=False,residual = True,final_relu = True, final_rff=False)
         if ckpt_path:
             self.load_pretrained_unet(ckpt_path)
@@ -347,10 +348,11 @@ class AutoencoderKL(pl.LightningModule):
         seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="train")
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
+                
         if optimizer_idx == 0:
             # train encoder+decoder+logvar
             aeloss, log_dict_ae = self.loss(dardar, reconstructions, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
+                                            last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask)
             self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
@@ -358,7 +360,7 @@ class AutoencoderKL(pl.LightningModule):
         if optimizer_idx == 1:
             # train the discriminator
             discloss, log_dict_disc = self.loss(dardar, reconstructions, optimizer_idx, self.global_step,
-                                                last_layer=self.get_last_layer(), split="train")
+                                                last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask)
 
             self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
@@ -370,10 +372,10 @@ class AutoencoderKL(pl.LightningModule):
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
         aeloss, log_dict_ae = self.loss(dardar, reconstructions, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val")
+                                        last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask)
 
         discloss, log_dict_disc = self.loss(dardar, reconstructions, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
+                                            last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask)
 
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
         self.log_dict(log_dict_ae)
@@ -391,30 +393,7 @@ class AutoencoderKL(pl.LightningModule):
     def get_last_layer(self):
         return self.unet.unet.final_conv[1].weight
 
-    @torch.no_grad()
-    def log_images(self, batch, only_inputs=False, **kwargs):
-        log = dict()
-        x = self.get_input(batch, self.image_key)
-        x = x.to(self.device)
-        if not only_inputs:
-            xrec, posterior = self(x)
-            if x.shape[1] > 3:
-                # colorize with random projection
-                assert xrec.shape[1] > 3
-                x = self.to_rgb(x)
-                xrec = self.to_rgb(xrec)
-            log["samples"] = self.decode(torch.randn_like(posterior.sample()))
-            log["reconstructions"] = xrec
-        log["inputs"] = x
-        return log
 
-    def to_rgb(self, x):
-        assert self.image_key == "segmentation"
-        if not hasattr(self, "colorize"):
-            self.register_buffer("colorize", torch.randn(3, x.shape[1], 1, 1).to(x))
-        x = F.conv2d(x, weight=self.colorize)
-        x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
-        return x
 
 
 class IdentityFirstStage(torch.nn.Module):
