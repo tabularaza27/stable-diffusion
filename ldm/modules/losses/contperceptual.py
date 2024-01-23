@@ -73,6 +73,12 @@ class LPIPSWithDiscriminator(nn.Module):
         if self.crop_to_profiles_2d:
             reconstructions = LPIPSWithDiscriminator.get_2d_profiles(reconstructions,mode=self.crop_mode, overpass_mask=overpass_mask)
             inputs = LPIPSWithDiscriminator.get_2d_profiles(inputs,mode=self.crop_mode, overpass_mask=overpass_mask)
+        
+            if self.disc_conditional:
+               assert self.disc_conditional
+               # get overpass view of seviri
+               cond = LPIPSWithDiscriminator.get_2d_profiles(reconstructions,mode=self.crop_mode, overpass_mask=overpass_mask)
+        
 
         # now the GAN part
         if optimizer_idx == 0:
@@ -131,7 +137,7 @@ class LPIPSWithDiscriminator(nn.Module):
             profiles_2d = torch.stack((cubes.mean(dim=-1), cubes.mean(dim=-2)),dim=1) # N x 2 x 256 x 64
 
         if mode == "padding":
-            assert overpass_mask is not None
+            assert overpass_mask is not None, f"overpass mask has to be tensor not {overpass_mask}"
             profiles_2d = LPIPSWithDiscriminator._get_padded_profiles(cubes, overpass_mask) # N x 1 x 256 x 96
 
         return profiles_2d

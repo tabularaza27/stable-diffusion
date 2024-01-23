@@ -348,11 +348,18 @@ class AutoencoderKL(pl.LightningModule):
         seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="train")
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
-                
+
+        # add seviri along over pass as condition
+        # itodo: in case we use whole cube as input for discriminator, think about passing all seviri data
+        if self.loss.disc_conditional:
+            cond = seviri * overpass_mask.unsqueeze(1)
+        else:
+            cond = None
+
         if optimizer_idx == 0:
             # train encoder+decoder+logvar
             aeloss, log_dict_ae = self.loss(dardar, reconstructions, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask)
+                                            last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask, cond=cond)
             self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
@@ -360,7 +367,7 @@ class AutoencoderKL(pl.LightningModule):
         if optimizer_idx == 1:
             # train the discriminator
             discloss, log_dict_disc = self.loss(dardar, reconstructions, optimizer_idx, self.global_step,
-                                                last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask)
+                                                last_layer=self.get_last_layer(), split="train", overpass_mask=overpass_mask, cond=cond)
 
             self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
@@ -371,11 +378,18 @@ class AutoencoderKL(pl.LightningModule):
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
+        # add seviri along over pass as condition
+        # itodo: in case we use whole cube as input for discriminator, think about passing all seviri data
+        if self.loss.disc_conditional:
+            cond = seviri * overpass_mask.unsqueeze(1)
+        else:
+            cond = None
+
         aeloss, log_dict_ae = self.loss(dardar, reconstructions, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask)
+                                        last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask, cond=cond)
 
         discloss, log_dict_disc = self.loss(dardar, reconstructions, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask)
+                                            last_layer=self.get_last_layer(), split="val", overpass_mask=overpass_mask, cond=cond)
 
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
         self.log_dict(log_dict_ae)
