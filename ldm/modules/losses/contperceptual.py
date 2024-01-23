@@ -77,7 +77,7 @@ class LPIPSWithDiscriminator(nn.Module):
             if self.disc_conditional:
                assert self.disc_conditional
                # get overpass view of seviri
-               cond = LPIPSWithDiscriminator.get_2d_profiles(reconstructions,mode=self.crop_mode, overpass_mask=overpass_mask)
+               cond = LPIPSWithDiscriminator.get_2d_profiles(cond,mode=self.crop_mode, overpass_mask=overpass_mask)
         
 
         # now the GAN part
