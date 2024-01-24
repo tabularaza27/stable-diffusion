@@ -288,6 +288,7 @@ class AutoencoderKL(pl.LightningModule):
     def __init__(self,
                  unetconfig,
                  lossconfig,
+                 ddconfig,
                  embed_dim,
                  ckpt_path=None,
                  monitor=None,
