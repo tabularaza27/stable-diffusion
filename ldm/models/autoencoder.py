@@ -286,7 +286,7 @@ class VQModelInterface(VQModel):
 
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
-                 ddconfig,
+                 unetconfig,
                  lossconfig,
                  embed_dim,
                  ckpt_path=None,
@@ -294,7 +294,8 @@ class AutoencoderKL(pl.LightningModule):
                  ):
         super().__init__()
         self.lossconfig=lossconfig
-        self.unet = IWPNetV1(in_channels=8,out_channels=256,dim_mults = (1,2,4),extended_final_conv=False,residual = True,final_relu = True, final_rff=False)
+        self.unetconfig=unetconfig
+        self.unet = instantiate_from_config(unetconfig)
         if ckpt_path:
             self.load_pretrained_unet(ckpt_path)
         
