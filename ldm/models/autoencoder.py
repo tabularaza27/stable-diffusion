@@ -323,7 +323,7 @@ class AutoencoderKL(pl.LightningModule):
         return self.unet(input)
         
     def get_input(self, batch, split="train"):
-        seviri, era5, dardar, overpass_mask, patch_idx = batch
+        seviri, era5, dardar, overpass_mask, meta_data, patch_idx = batch
         
         # double check when which dtype occurs
         seviri = seviri.float() # this means float32, double() is float64,
@@ -344,10 +344,10 @@ class AutoencoderKL(pl.LightningModule):
             overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
             dardar = transforms.functional.rotate(dardar, rotation_angle) 
 
-        return seviri, era5, dardar, overpass_mask, patch_idx
+        return seviri, era5, dardar, overpass_mask, meta_data, patch_idx
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="train")
+        seviri, era5, dardar, overpass_mask, meta_data, patch_idx = self.get_input(batch, split="train")
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
@@ -376,7 +376,7 @@ class AutoencoderKL(pl.LightningModule):
             return discloss
 
     def validation_step(self, batch, batch_idx):
-        seviri, era5, dardar, overpass_mask, patch_idx = self.get_input(batch, split="val")
+        seviri, era5, dardar, overpass_mask, meta_data, patch_idx = self.get_input(batch, split="val")
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
