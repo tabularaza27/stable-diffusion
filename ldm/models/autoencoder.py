@@ -351,10 +351,13 @@ class AutoencoderKL(pl.LightningModule):
         reconstructions = self(seviri)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
-        # add seviri along over pass as condition
-        # itodo: in case we use whole cube as input for discriminator, think about passing all seviri data
         if self.loss.disc_conditional:
-            cond = seviri * overpass_mask.unsqueeze(1)
+            if self.lossconfig["params"]["discriminator_3D"]:
+                # in case we use whole cube as input for discriminator, passing all seviri data
+                cond = seviri
+            else:
+                # add seviri along over pass as condition
+                cond = seviri * overpass_mask.unsqueeze(1)
         else:
             cond = None
 

@@ -25,6 +25,7 @@ class LPIPSWithDiscriminator(nn.Module):
                                                     n_layers=disc_num_layers,
                                                     ndf=ndf
                                                     ).apply(weights_init)
+            self.cond_concat_dim=-3
 
         else:
             # use 2D discriminator
@@ -33,6 +34,7 @@ class LPIPSWithDiscriminator(nn.Module):
                                                     use_actnorm=use_actnorm,
                                                     ndf=ndf
                                                     ).apply(weights_init)
+            self.cond_concat_dim=-2
             
         self.discriminator_iter_start = disc_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
@@ -88,7 +90,7 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(reconstructions.contiguous())
             else:
                 assert self.disc_conditional
-                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=-2))
+                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=-self.cond_concat_dim))
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
@@ -117,8 +119,8 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
             else:
-                logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=-2))
-                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=-2))
+                logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=-self.cond_concat_dim))
+                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=-self.cond_concat_dim))
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
             d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
