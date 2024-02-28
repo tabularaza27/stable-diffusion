@@ -319,8 +319,8 @@ class AutoencoderKL(pl.LightningModule):
         dec = self.decoder(z)
         return dec
 
-    def forward(self, input):
-        return self.unet(input)
+    def forward(self, input, emb=None):
+        return self.unet(input, emb)
         
     def get_input(self, batch, split="train"):
         seviri, era5, dardar, overpass_mask, meta_data, patch_idx = batch
@@ -348,7 +348,10 @@ class AutoencoderKL(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         seviri, era5, dardar, overpass_mask, meta_data, patch_idx = self.get_input(batch, split="train")
-        reconstructions = self(seviri)
+        if self.unet.meta_data_embedding:
+            reconstructions = self(seviri, meta_data)
+        else:
+            reconstructions = self(seviri, None)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
         if self.loss.disc_conditional:
@@ -380,7 +383,10 @@ class AutoencoderKL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         seviri, era5, dardar, overpass_mask, meta_data, patch_idx = self.get_input(batch, split="val")
-        reconstructions = self(seviri)
+        if self.unet.meta_data_embedding:
+            reconstructions = self(seviri, meta_data)
+        else:
+            reconstructions = self(seviri, None)
         reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
 
         # add seviri along over pass as condition
