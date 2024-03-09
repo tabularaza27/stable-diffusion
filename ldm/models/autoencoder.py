@@ -347,6 +347,12 @@ class AutoencoderKL(pl.LightningModule):
         else:
             dardar = transforms.functional.rotate(dardar, rotation_angle) 
 
+        # error on overpass → mask everythin else
+        if len(dardar.shape) == 5:
+            overpass_mask= overpass_mask.unsqueeze(1).unsqueeze(1)
+        else:
+            overpass_mask= overpass_mask.unsqueeze(1)
+
         return seviri, era5, dardar, overpass_mask, meta_data, patch_idx
 
     def training_step(self, batch, batch_idx, optimizer_idx):
@@ -355,7 +361,7 @@ class AutoencoderKL(pl.LightningModule):
             reconstructions = self(seviri, meta_data)
         else:
             reconstructions = self(seviri, None)
-        reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
+        reconstructions = reconstructions * overpass_mask # mask reconstruction to overpass
 
         if self.loss.disc_conditional:
             if self.lossconfig["params"]["discriminator_3D"]:
@@ -363,7 +369,7 @@ class AutoencoderKL(pl.LightningModule):
                 cond = seviri
             else:
                 # add seviri along over pass as condition
-                cond = seviri * overpass_mask.unsqueeze(1)
+                cond = seviri * overpass_mask
         else:
             cond = None
 
@@ -390,12 +396,17 @@ class AutoencoderKL(pl.LightningModule):
             reconstructions = self(seviri, meta_data)
         else:
             reconstructions = self(seviri, None)
-        reconstructions = reconstructions * overpass_mask.unsqueeze(1) # mask reconstruction to overpass
+        reconstructions = reconstructions * overpass_mask # mask reconstruction to overpass
 
         # add seviri along over pass as condition
         # itodo: in case we use whole cube as input for discriminator, think about passing all seviri data
         if self.loss.disc_conditional:
-            cond = seviri * overpass_mask.unsqueeze(1)
+            if self.lossconfig["params"]["discriminator_3D"]:
+                # in case we use whole cube as input for discriminator, passing all seviri data
+                cond = seviri
+            else:
+                # add seviri along over pass as condition
+                cond = seviri * overpass_mask
         else:
             cond = None
 
