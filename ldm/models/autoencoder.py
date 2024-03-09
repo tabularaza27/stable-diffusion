@@ -327,21 +327,24 @@ class AutoencoderKL(pl.LightningModule):
         
         # double check when which dtype occurs
         seviri = seviri.float() # this means float32, double() is float64,
-        dardar = dardar.float()
-        
         overpass_mask = overpass_mask.long()
-        dardar = dardar.permute(0,3,1,2) # permute to batch, channels, H, W
-        dardar = dardar * overpass_mask.unsqueeze(1) # dardar is already masked but in case target is in log space, set all non overpass indices to 0
+        dardar = dardar.float()
         
         # add "channel" dimension to era5, double check era5 normalization
         if len(era5.shape)==2:
             era5 = era5.unsqueeze(1)
         
         # randomly rotate image
-        if split=="train":
-            rotation_angle = int(np.random.choice([0,90,180,270,-90,-180,-270]))
-            seviri = transforms.functional.rotate(seviri, rotation_angle)
-            overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
+        rotation_angle = int(np.random.choice([0,90,180,270,-90,-180,-270]))
+        seviri = transforms.functional.rotate(seviri, rotation_angle)
+        overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
+        if len(dardar.shape) == 5:
+            # error in rotate function → thus this workaround
+            # https://discuss.pytorch.org/t/problem-with-torchvision-functional-rotate/147740
+            # for 2 target variables
+            shape = dardar.shape
+            dardar = transforms.functional.rotate(dardar.view(shape[0], shape[1] * shape[2], shape[3], shape[4]), rotation_angle).view(*shape)
+        else:
             dardar = transforms.functional.rotate(dardar, rotation_angle) 
 
         return seviri, era5, dardar, overpass_mask, meta_data, patch_idx
