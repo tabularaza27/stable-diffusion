@@ -222,4 +222,4 @@ class NLayerDiscriminator3D(nn.Module):
 
     def forward(self, input):
         # modifiy input to add channel dimension
-        return self.model(input.unsqueeze(1))
+        return self.model(input)
