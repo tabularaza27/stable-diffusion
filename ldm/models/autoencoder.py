@@ -301,6 +301,9 @@ class AutoencoderKL(pl.LightningModule):
             self.load_pretrained_unet(ckpt_path)
         
         self.loss = instantiate_from_config(lossconfig)
+        # necessary class attrs for logging via callbacks
+        self.out_channels = self.unet.out_channels # needed for plotting callback
+        self.meta_data_embedding=self.unet.meta_data_embedding
         
     def load_pretrained_unet(self, ckpt_path):
         print(f"load pretrained unet from path {ckpt_path}")
