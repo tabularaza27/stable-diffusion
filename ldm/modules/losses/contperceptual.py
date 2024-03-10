@@ -21,12 +21,16 @@ class LPIPSWithDiscriminator(nn.Module):
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
         if discriminator_3D == True:
             # use 3D discriminator
+            if disc_in_channels > 1:
+                # multi target
+                if disc_conditional: disc_in_channels += 11 # add 11 SEVIRI channels 
+                self.cond_concat_dim=1
+            else:
+                self.cond_concat_dim=-3
             self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
                                                     n_layers=disc_num_layers,
                                                     ndf=ndf
                                                     ).apply(weights_init)
-            self.cond_concat_dim=-3
-
         else:
             # use 2D discriminator
             self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
@@ -90,6 +94,9 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(reconstructions.contiguous())
             else:
                 assert self.disc_conditional
+                if len(reconstructions.shape) == 5:
+                    # expand seviri cond to N x SevChannels x 64 x 256 x 256
+                    cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
             g_loss = -torch.mean(logits_fake)
 
@@ -119,6 +126,9 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
             else:
+                if len(reconstructions.shape) == 5:
+                    # expand seviri cond to N x SevChannels x 64 x 256 x 256
+                    cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
                 logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=self.cond_concat_dim))
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=self.cond_concat_dim))
 
