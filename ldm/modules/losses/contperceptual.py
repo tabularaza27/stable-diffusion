@@ -136,8 +136,13 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
             else:
                 if len(reconstructions.shape) == 5:
-                    # expand seviri cond to N x SevChannels x 64 x 256 x 256
-                    cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
+                    # expand seviri cond to N x SevChannels x 64 x 256 x 256 (concat along channels)
+                    # cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
+
+                    # expand seviri to N x n_targets x SevChannels x 256 x 256 (concat along vertical dimension)
+                    cond = cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1) 
+
+
                 logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=self.cond_concat_dim))
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=self.cond_concat_dim))
 
