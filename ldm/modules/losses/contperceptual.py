@@ -104,7 +104,7 @@ class LPIPSWithDiscriminator(nn.Module):
                     # cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
 
                     # expand seviri to N x n_targets x SevChannels x 256 x 256 (concat along vertical dimension)
-                    cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1)
+                    cond = cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1)
 
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
             g_loss = -torch.mean(logits_fake)
