@@ -23,8 +23,13 @@ class LPIPSWithDiscriminator(nn.Module):
             # use 3D discriminator
             if disc_in_channels > 1:
                 # multi target
-                if disc_conditional: disc_in_channels += 11 # add 11 SEVIRI channels 
-                self.cond_concat_dim=1
+                
+                # concat along channels (sev channels and seviri targets)
+                #if disc_conditional: disc_in_channels += 11 # add 11 SEVIRI channels 
+                #self.cond_concat_dim=1
+
+                # concat channels with vertical dimension
+                self.cond_concat_dim=-3
             else:
                 self.cond_concat_dim=-3
             self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
@@ -95,8 +100,12 @@ class LPIPSWithDiscriminator(nn.Module):
             else:
                 assert self.disc_conditional
                 if len(reconstructions.shape) == 5:
-                    # expand seviri cond to N x SevChannels x 64 x 256 x 256
-                    cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
+                    # expand seviri cond to N x SevChannels x 64 x 256 x 256 (concat along channels)
+                    # cond = cond.unsqueeze(2).expand(-1,-1,reconstructions.shape[2],-1,-1)
+
+                    # expand seviri to N x n_targets x SevChannels x 256 x 256 (concat along vertical dimension)
+                    cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1)
+
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
             g_loss = -torch.mean(logits_fake)
 
