@@ -369,7 +369,7 @@ class AutoencoderKL(pl.LightningModule):
         if self.loss.disc_conditional:
             if self.lossconfig["params"]["discriminator_3D"]:
                 # in case we use whole cube as input for discriminator, passing all seviri data
-                cond = seviri
+                cond = seviri[:,3:] # use only IR channels
             else:
                 # add seviri along over pass as condition
                 cond = seviri * overpass_mask
