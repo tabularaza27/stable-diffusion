@@ -433,7 +433,7 @@ class AutoencoderKL(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
-        if self.prediction_heads > 1:
+        if self.unet.prediction_heads > 1:
             return self.unet.unet.final_conv[0][1].weight
         else:
             return self.unet.unet.final_conv[1].weight
