@@ -245,5 +245,8 @@ class NLayerDiscriminator3D(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
-        # modifiy input to add channel dimension
+        # modifiy input to add channel dimension for 1 target prediction
+        if len(input.shape)==4:
+            input = input.unsqueeze(1)
+
         return self.model(input)
