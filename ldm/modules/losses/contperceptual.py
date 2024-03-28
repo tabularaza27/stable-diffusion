@@ -89,7 +89,10 @@ class LPIPSWithDiscriminator(nn.Module):
                assert self.disc_conditional
                # get overpass view of seviri
                cond = LPIPSWithDiscriminator.get_2d_profiles(cond,mode=self.crop_mode, overpass_mask=overpass_mask)
-        
+
+        # downsample overpass mask to mask disc output
+        downsampled_overpass_mask = F.interpolate(overpass_mask.float(),size=(1,14,14),mode="area")        
+        downsampled_overpass_mask[downsampled_overpass_mask>0] = 1
 
         # now the GAN part
         if optimizer_idx == 0:
@@ -107,7 +110,8 @@ class LPIPSWithDiscriminator(nn.Module):
                     cond = cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1)
 
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
-            g_loss = -torch.mean(logits_fake)
+            logits_fake_masked = logits_fake * downsampled_overpass_mask
+            g_loss = -torch.mean(logits_fake_masked)
 
             if self.disc_factor > 0.0:
                 try:
@@ -146,8 +150,11 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=self.cond_concat_dim))
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=self.cond_concat_dim))
 
+            logits_real_masked = logits_real * downsampled_overpass_mask
+            logits_fake_masked = logits_fake * downsampled_overpass_mask
+
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+            d_loss = disc_factor * self.disc_loss(logits_real_masked, logits_fake_masked)
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                    "{}/logits_real".format(split): logits_real.detach().mean(),
