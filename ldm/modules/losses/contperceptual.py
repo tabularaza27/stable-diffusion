@@ -90,6 +90,13 @@ class LPIPSWithDiscriminator(nn.Module):
                # get overpass view of seviri
                cond = LPIPSWithDiscriminator.get_2d_profiles(cond,mode=self.crop_mode, overpass_mask=overpass_mask)
 
+        # mask inputs
+        expanded_overpass_mask = overpass_mask.to(torch.device("cuda")).expand(reconstructions.shape).bool()
+        expanded_overpass_mask = ~expanded_overpass_mask
+
+        reconstructions = reconstructions.masked_fill(expanded_overpass_mask,-9)
+        inputs = inputs.masked_fill(expanded_overpass_mask,-9)
+
         # downsample overpass mask to mask disc output
         downsampled_overpass_mask = F.interpolate(overpass_mask.float(),size=(1,14,14),mode="area")        
         downsampled_overpass_mask[downsampled_overpass_mask>0] = 1
