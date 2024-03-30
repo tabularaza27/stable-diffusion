@@ -158,7 +158,9 @@ class LPIPSWithDiscriminator(nn.Module):
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                    "{}/logits_real".format(split): logits_real.detach().mean(),
-                   "{}/logits_fake".format(split): logits_fake.detach().mean()
+                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
+                   "{}/logits_real_masked".format(split): logits_real_masked.detach().mean(),
+                   "{}/logits_fake_masked".format(split): logits_fake_masked.detach().mean(),
                    }
             return d_loss, log
 
