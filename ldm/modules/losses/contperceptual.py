@@ -10,7 +10,7 @@ class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
                  perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
-                 disc_loss="hinge", ndf=64, discriminator_3D=False, crop_to_profiles_2d=False, crop_mode="avg_dimensions"):
+                 disc_loss="hinge", ndf=64, discriminator_3D=False, crop_to_profiles_2d=False, crop_mode="avg_dimensions",mask_disc_output=False):
 
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
@@ -52,6 +52,7 @@ class LPIPSWithDiscriminator(nn.Module):
         self.disc_conditional = disc_conditional
         self.crop_to_profiles_2d = crop_to_profiles_2d
         self.crop_mode = crop_mode
+        self.mask_disc_output = mask_disc_output
 
     def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
         if last_layer is not None:
@@ -117,9 +118,12 @@ class LPIPSWithDiscriminator(nn.Module):
                     cond = cond.unsqueeze(1).expand(-1,reconstructions.shape[1],-1,-1,-1)
 
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
-            logits_fake_masked = logits_fake * downsampled_overpass_mask
-            g_loss = -torch.mean(logits_fake_masked)
-
+            
+            if self.mask_disc_output:
+                logits_fake_masked = logits_fake * downsampled_overpass_mask
+                g_loss = -torch.mean(logits_fake_masked)
+            else:
+                g_loss = -torch.mean(logits_fake)
             if self.disc_factor > 0.0:
                 try:
                     d_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
@@ -157,18 +161,29 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=self.cond_concat_dim))
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=self.cond_concat_dim))
 
-            logits_real_masked = logits_real * downsampled_overpass_mask
-            logits_fake_masked = logits_fake * downsampled_overpass_mask
+            
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            d_loss = disc_factor * self.disc_loss(logits_real_masked, logits_fake_masked)
 
-            log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-                   "{}/logits_real".format(split): logits_real.detach().mean(),
-                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
-                   "{}/logits_real_masked".format(split): logits_real_masked.detach().mean(),
-                   "{}/logits_fake_masked".format(split): logits_fake_masked.detach().mean(),
-                   }
+            if self.mask_disc_output:
+                logits_real_masked = logits_real * downsampled_overpass_mask
+                logits_fake_masked = logits_fake * downsampled_overpass_mask
+                d_loss = disc_factor * self.disc_loss(logits_real_masked, logits_fake_masked)
+
+                log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
+                    "{}/logits_real".format(split): logits_real.detach().mean(),
+                    "{}/logits_fake".format(split): logits_fake.detach().mean(),
+                    "{}/logits_real_masked".format(split): logits_real_masked.detach().mean(),
+                    "{}/logits_fake_masked".format(split): logits_fake_masked.detach().mean(),
+                    }
+            else:
+                d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+
+                log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
+                    "{}/logits_real".format(split): logits_real.detach().mean(),
+                    "{}/logits_fake".format(split): logits_fake.detach().mean()}
+
+                
             return d_loss, log
 
     @staticmethod
