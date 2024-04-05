@@ -99,8 +99,9 @@ class LPIPSWithDiscriminator(nn.Module):
         inputs = inputs.masked_fill(expanded_overpass_mask,-9)
 
         # downsample overpass mask to mask disc output
-        downsampled_overpass_mask = F.interpolate(overpass_mask.float(),size=(1,14,14),mode="area")        
-        downsampled_overpass_mask[downsampled_overpass_mask>0] = 1
+        if self.mask_disc_output:
+            downsampled_overpass_mask = F.interpolate(overpass_mask.float(),size=(1,14,14),mode="area")        
+            downsampled_overpass_mask[downsampled_overpass_mask>0] = 1
 
         # now the GAN part
         if optimizer_idx == 0:
