@@ -32,10 +32,22 @@ class LPIPSWithDiscriminator(nn.Module):
                 self.cond_concat_dim=-3
             else:
                 self.cond_concat_dim=-3
-            self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
-                                                    n_layers=disc_num_layers,
-                                                    ndf=ndf
-                                                    ).apply(weights_init)
+            #self.discriminator = NLayerDiscriminator3D(input_nc=disc_in_channels,
+            #                                        n_layers=disc_num_layers,
+            #                                        ndf=ndf
+            #                                        ).apply(weights_init)
+            
+            # set number of conditional channels (currently only IR channels)
+            if self.disc_conditional:
+                cond_channels = 8
+            else:
+                cond_channels = 0
+
+            self.discriminator = CondNLayerDiscriminator3D(input_nc=disc_in_channels,
+                                                           n_layers=disc_num_layers,
+                                                           cond_channels=cond_channels,
+                                                           ndf=ndf).apply(weights_init)
+
         else:
             # use 2D discriminator
             self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
@@ -121,7 +133,8 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=self.cond_concat_dim))
             
             if self.mask_disc_output:
-                logits_fake_masked = logits_fake * downsampled_overpass_mask
+                # logits_fake_masked = logits_fake * downsampled_overpass_mask
+                logits_fake_masked = torch.masked_select(logits_fake,downsampled_overpass_mask.bool())
                 g_loss = -torch.mean(logits_fake_masked)
             else:
                 g_loss = -torch.mean(logits_fake)
@@ -162,13 +175,15 @@ class LPIPSWithDiscriminator(nn.Module):
                 logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=self.cond_concat_dim))
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=self.cond_concat_dim))
 
-            
-
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
             if self.mask_disc_output:
-                logits_real_masked = logits_real * downsampled_overpass_mask
-                logits_fake_masked = logits_fake * downsampled_overpass_mask
+                #logits_real_masked = logits_real * downsampled_overpass_mask
+                #logits_fake_masked = logits_fake * downsampled_overpass_mask
+
+                logits_real_masked = torch.masked_select(logits_real,downsampled_overpass_mask.bool())
+                logits_fake_masked = torch.masked_select(logits_fake,downsampled_overpass_mask.bool())
+
                 d_loss = disc_factor * self.disc_loss(logits_real_masked, logits_fake_masked)
 
                 log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
@@ -282,3 +297,139 @@ class NLayerDiscriminator3D(nn.Module):
             input = input.unsqueeze(1)
 
         return self.model(input)
+    
+
+# Defines the PatchGAN discriminator with the specified arguments.
+# As seen here https://github.com/davidiommi/3D-CycleGan-Pytorch-MedImaging/blob/main/models/networks3D.py#L369
+# only modified forward to add channel dimension
+class CondNLayerDiscriminator3D(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 cond_channels=8,
+                 ndf=64,
+                 n_layers=3,
+                 kernel_size=4,
+                 padding=1,
+                 norm_layer=nn.BatchNorm3d,
+                 use_sigmoid=False):
+        
+        super().__init__()
+
+        # init params
+        self.in_channels = in_channels
+        self.cond_channels = cond_channels
+        self.ndf = ndf
+        self.n_layers = n_layers
+        self.kernel_size=kernel_size
+        self.padding=padding
+        self.norm_layer = norm_layer
+        self.use_sigmoid = use_sigmoid
+        
+        # make models
+        self.base_model = self._make_base_model()
+        self.cond_model = self._make_cond_model() if self.cond_channels else None
+        self.bridge_model = self._make_bridge_model() if self.cond_channels else None
+
+    def _make_base_model(self):
+        if type(self.norm_layer) == functools.partial:
+            use_bias = self.norm_layer.func == nn.InstanceNorm3d
+        else:
+            use_bias = self.norm_layer == nn.InstanceNorm3d
+            
+        sequence = [nn.Sequential(
+            nn.Conv3d(self.in_channels, self.ndf, kernel_size=self.kernel_size, stride=2, padding=self.padding),
+            nn.LeakyReLU(0.2, True)
+        )]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, self.n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [nn.Sequential(
+                nn.Conv3d(self.ndf * nf_mult_prev, self.ndf * nf_mult,
+                          kernel_size=self.kernel_size, stride=2, padding=self.padding, bias=use_bias),
+                self.norm_layer(self.ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            )]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2**self.n_layers, 8)
+        sequence += [nn.Sequential(
+            nn.Conv3d(self.ndf * nf_mult_prev, self.ndf * nf_mult,
+                      kernel_size=self.kernel_size, stride=1, padding=self.padding, bias=use_bias),
+            self.norm_layer(self.ndf * nf_mult),
+            nn.LeakyReLU(0.2, True)
+        )]
+
+        sequence += [nn.Conv3d(self.ndf * nf_mult, 1, kernel_size=self.kernel_size, stride=1, padding=self.padding)]
+
+        if self.use_sigmoid:
+            sequence += [nn.Sigmoid()]
+
+        return nn.ModuleList(sequence)
+
+    def _make_cond_model(self):
+        
+        if type(self.norm_layer) == functools.partial:
+            use_bias = self.norm_layer.func == nn.InstanceNorm3d
+        else:
+            use_bias = self.norm_layer == nn.InstanceNorm3d
+
+        sequence = [nn.Sequential(
+            nn.Conv2d(self.cond_channels, self.ndf, kernel_size=self.kernel_size, stride=2, padding=self.padding),
+            nn.LeakyReLU(0.2, True)
+        )]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, self.n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [nn.Sequential(
+                nn.Conv2d(self.ndf * nf_mult_prev, self.ndf * nf_mult,
+                          kernel_size=self.kernel_size, stride=2, padding=self.padding, bias=use_bias),
+                nn.LeakyReLU(0.2, True)
+            )]
+
+        return nn.ModuleList(sequence)
+
+    def _make_bridge_model(self):
+
+        use_bias=False
+
+        sequence = [nn.Sequential(
+            nn.Conv2d(self.ndf, self.ndf, kernel_size=1, stride=1, padding=0),
+            nn.LeakyReLU(0.2, True)
+        )]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, self.n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [nn.Sequential(
+                nn.Conv2d(self.ndf * nf_mult, self.ndf * nf_mult,
+                          kernel_size=1, stride=1, padding=0, bias=use_bias),
+                nn.LeakyReLU(0.2, True)
+            )]
+
+        return nn.ModuleList(sequence)
+
+    def forward(self, input, cond=None):
+        # modifiy input to add channel dimension for 1 target prediction
+        if len(input.shape)==4:
+            input = input.unsqueeze(1)
+
+        output=input
+        cond_output=cond
+        for idx, block in enumerate(self.base_model):
+            
+            output = block(output)
+            if idx < len(self.cond_model) and cond_output is not None:
+                # pass features
+                cond_output = self.cond_model[idx](cond_output)
+                # merge features (average strength baceause cond is optional)
+                output = (output + self.bridge_model[idx](cond_output)[:,:,None,:,:])/2
+
+        return output
