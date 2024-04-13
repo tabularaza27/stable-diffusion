@@ -38,7 +38,7 @@ class LPIPSWithDiscriminator(nn.Module):
             #                                        ).apply(weights_init)
             
             # set number of conditional channels (currently only IR channels)
-            if self.disc_conditional:
+            if disc_conditional:
                 cond_channels = 8
             else:
                 cond_channels = 0
