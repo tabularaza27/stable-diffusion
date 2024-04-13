@@ -308,7 +308,7 @@ class NLayerDiscriminator3D(nn.Module):
 # only modified forward to add channel dimension
 class CondNLayerDiscriminator3D(nn.Module):
     def __init__(self,
-                 in_channels,
+                 input_nc,
                  cond_channels=8,
                  ndf=64,
                  n_layers=3,
@@ -320,7 +320,7 @@ class CondNLayerDiscriminator3D(nn.Module):
         super().__init__()
 
         # init params
-        self.in_channels = in_channels
+        self.in_channels = input_nc
         self.cond_channels = cond_channels
         self.ndf = ndf
         self.n_layers = n_layers
