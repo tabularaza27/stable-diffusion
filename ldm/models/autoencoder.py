@@ -425,6 +425,8 @@ class AutoencoderKL(pl.LightningModule):
         self.log_dict(log_dict_disc)
         #return self.log_dict
 
+        y_hat = reconstructions
+
         y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform)
         y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
         y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
