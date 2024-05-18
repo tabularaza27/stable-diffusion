@@ -427,9 +427,10 @@ class AutoencoderKL(pl.LightningModule):
 
         y_hat = reconstructions
 
-        y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform)
-        y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
-        y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
+        # get overpass data (use default log transform)
+        y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask)
+        y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, meta_data=meta_data, meta_data_filter=(3,0))
+        y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask, meta_data=meta_data, meta_data_filter=(3,0))
 
         return {"overpass_mask":overpass_mask, 
                 "y_hat_overpass" : y_hat_overpass,
