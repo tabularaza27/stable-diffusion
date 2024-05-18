@@ -12,6 +12,7 @@ from ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
 from ldm.util import instantiate_from_config
 from model.IWPNetV1 import IWPNetV1
+from data.data_utils import get_overpass_data
 
 class VQModel(pl.LightningModule):
     def __init__(self,
@@ -422,7 +423,24 @@ class AutoencoderKL(pl.LightningModule):
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
-        return self.log_dict
+        #return self.log_dict
+
+        y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform)
+        y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
+        y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data, meta_data_filter=(3,0))
+
+        return {"overpass_mask":overpass_mask, 
+                "y_hat_overpass" : y_hat_overpass,
+                "dardar_overpass": dardar_overpass,
+                "y_hat_overpass_day" : y_hat_overpass_day,
+                "dardar_overpass_day": dardar_overpass_day,
+                "y_hat_overpass_night" : y_hat_overpass_night,
+                "dardar_overpass_night": dardar_overpass_night,
+                } # loss# ,"y_hat":y_hat,"dardar":dardar, "overpass_mask": overpass_mask}
+    
+    def validation_epoch_end(self, outputs) -> None:
+        print("validation epoch end")
+        self.validation_data = outputs
 
     def configure_optimizers(self):
         lr = 5e-5 # TODO: for now manually set by me self.learning_rate
