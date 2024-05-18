@@ -13,6 +13,7 @@ from ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 from ldm.util import instantiate_from_config
 from model.IWPNetV1 import IWPNetV1
 from data.data_utils import get_overpass_data
+from data.data import LogTransform2D
 
 class VQModel(pl.LightningModule):
     def __init__(self,
@@ -305,6 +306,7 @@ class AutoencoderKL(pl.LightningModule):
         # necessary class attrs for logging via callbacks
         self.out_channels = self.unet.out_channels # needed for plotting callback
         self.meta_data_embedding=self.unet.meta_data_embedding
+        self.target_transform = LogTransform2D(constants=[1,1],scalers=[1e7,1e-2]) # todo make dynamic (only used in validation data gathering)
         
     def load_pretrained_unet(self, ckpt_path):
         print(f"load pretrained unet from path {ckpt_path}")
@@ -428,9 +430,9 @@ class AutoencoderKL(pl.LightningModule):
         y_hat = reconstructions
 
         # get overpass data (use default log transform)
-        y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask)
-        y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, meta_data=meta_data, meta_data_filter=(3,0))
-        y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask, meta_data=meta_data, meta_data_filter=(3,0))
+        y_hat_overpass, dardar_overpass = y_hat_overpass, dardar_overpass = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform)
+        y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data=meta_data, meta_data_filter=(3,0))
+        y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask,  self.target_transform, meta_data=meta_data, meta_data_filter=(3,0))
 
         return {"overpass_mask":overpass_mask, 
                 "y_hat_overpass" : y_hat_overpass,
