@@ -307,6 +307,7 @@ class AutoencoderKL(pl.LightningModule):
         self.out_channels = self.unet.out_channels # needed for plotting callback
         self.meta_data_embedding=self.unet.meta_data_embedding
         self.target_transform = LogTransform2D(constants=[1,1],scalers=[1e7,1e-2]) # todo make dynamic (only used in validation data gathering)
+        self.validation_data = []
         
     def load_pretrained_unet(self, ckpt_path):
         print(f"load pretrained unet from path {ckpt_path}")
@@ -446,6 +447,7 @@ class AutoencoderKL(pl.LightningModule):
     def validation_epoch_end(self, outputs) -> None:
         print("validation epoch end")
         self.validation_data = outputs
+        print("set validation data")
 
     def configure_optimizers(self):
         lr = 5e-5 # TODO: for now manually set by me self.learning_rate
