@@ -450,15 +450,14 @@ class AutoencoderKL(pl.LightningModule):
         print("device of dardar_overpass_day:", dardar_overpass_day.device)
         print("device of dardar_overpass_night:", dardar_overpass_night.device)
 
-        return {"overpass_mask":overpass_mask}
-              # , 
-              # "y_hat_overpass" : y_hat_overpass,
-              # "dardar_overpass": dardar_overpass,
-              # "y_hat_overpass_day" : y_hat_overpass_day,
-              # "dardar_overpass_day": dardar_overpass_day,
-              # "y_hat_overpass_night" : y_hat_overpass_night,
-              # "dardar_overpass_night": dardar_overpass_night,
-              # } # loss# ,"y_hat":y_hat,"dardar":dardar, "overpass_mask": overpass_mask}
+        return {"overpass_mask":overpass_mask, 
+                "y_hat_overpass" : y_hat_overpass,
+                "dardar_overpass": dardar_overpass,
+                "y_hat_overpass_day" : y_hat_overpass_day,
+                "dardar_overpass_day": dardar_overpass_day,
+                "y_hat_overpass_night" : y_hat_overpass_night,
+                "dardar_overpass_night": dardar_overpass_night,
+                } # loss# ,"y_hat":y_hat,"dardar":dardar, "overpass_mask": overpass_mask}
     
     def validation_epoch_end(self, outputs) -> None:
         print("validation epoch end")
