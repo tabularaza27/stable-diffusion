@@ -435,6 +435,21 @@ class AutoencoderKL(pl.LightningModule):
         y_hat_overpass_day, dardar_overpass_day = get_overpass_data(y_hat, dardar, overpass_mask, self.target_transform, meta_data=meta_data, meta_data_filter=(3,0))
         y_hat_overpass_night, dardar_overpass_night = get_overpass_data(y_hat, dardar, overpass_mask,  self.target_transform, meta_data=meta_data, meta_data_filter=(3,0))
 
+        print("overpass mask shape", overpass_mask.shape)
+        print("Shape of y_hat_overpass:", y_hat_overpass.shape)
+        print("Shape of y_hat_overpass_day:", y_hat_overpass_day.shape)
+        print("Shape of y_hat_overpass_night:", y_hat_overpass_night.shape)
+        print("Shape of dardar_overpass:", dardar_overpass.shape)
+        print("Shape of dardar_overpass_day:", dardar_overpass_day.shape)
+        print("Shape of dardar_overpass_night:", dardar_overpass_night.shape)
+
+        print("device of y_hat_overpass:", y_hat_overpass.device)
+        print("device of y_hat_overpass_day:", y_hat_overpass_day.device)
+        print("device of y_hat_overpass_night:", y_hat_overpass_night.device)
+        print("device of dardar_overpass:", dardar_overpass.device)
+        print("device of dardar_overpass_day:", dardar_overpass_day.device)
+        print("device of dardar_overpass_night:", dardar_overpass_night.device)
+
         return {"overpass_mask":overpass_mask, 
                 "y_hat_overpass" : y_hat_overpass,
                 "dardar_overpass": dardar_overpass,
