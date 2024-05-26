@@ -342,17 +342,18 @@ class AutoencoderKL(pl.LightningModule):
             era5 = era5.unsqueeze(1)
         
         # randomly rotate image
-        rotation_angle = int(np.random.choice([0,90,180,270,-90,-180,-270]))
-        seviri = transforms.functional.rotate(seviri, rotation_angle)
-        overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
-        if len(dardar.shape) == 5:
-            # error in rotate function → thus this workaround
-            # https://discuss.pytorch.org/t/problem-with-torchvision-functional-rotate/147740
-            # for 2 target variables
-            shape = dardar.shape
-            dardar = transforms.functional.rotate(dardar.view(shape[0], shape[1] * shape[2], shape[3], shape[4]), rotation_angle).view(*shape)
-        else:
-            dardar = transforms.functional.rotate(dardar, rotation_angle) 
+        if split == "train":
+            rotation_angle = int(np.random.choice([0,90,180,270,-90,-180,-270]))
+            seviri = transforms.functional.rotate(seviri, rotation_angle)
+            overpass_mask = transforms.functional.rotate(overpass_mask, rotation_angle)
+            if len(dardar.shape) == 5:
+                # error in rotate function → thus this workaround
+                # https://discuss.pytorch.org/t/problem-with-torchvision-functional-rotate/147740
+                # for 2 target variables
+                shape = dardar.shape
+                dardar = transforms.functional.rotate(dardar.view(shape[0], shape[1] * shape[2], shape[3], shape[4]), rotation_angle).view(*shape)
+            else:
+                dardar = transforms.functional.rotate(dardar, rotation_angle) 
 
         # error on overpass → mask everythin else
         if len(dardar.shape) == 5:
@@ -451,6 +452,7 @@ class AutoencoderKL(pl.LightningModule):
         print("device of dardar_overpass_night:", dardar_overpass_night.device)
 
         return {"overpass_mask":overpass_mask, 
+                "meta_data": meta_data,
                 "y_hat_overpass" : y_hat_overpass,
                 "dardar_overpass": dardar_overpass,
                 "y_hat_overpass_day" : y_hat_overpass_day,
